@@ -25,6 +25,9 @@ class CreateAccountsTable extends Migration
             $table->string('redirect_uri')->nullable();
             $table->string('token_type')->nullable();
             $table->integer('expires_in')->nullable();
+            $table->string('api_key')->nullable();
+            $table->string('park_id')->nullable();
+            $table->string('widget')->nullable();
         });
     }
 

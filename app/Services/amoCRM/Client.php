@@ -21,7 +21,7 @@ class Client
     {
         $account = Account::where('service', 'amocrm')->first();
 
-        Oauthapi::setOauthStorage(new AccountStorage([]));
+        //Oauthapi::setOauthStorage(new AccountStorage([]));
 
         $this->service = Oauthapi::setInstance([
             'domain'        => $account->subdomain,

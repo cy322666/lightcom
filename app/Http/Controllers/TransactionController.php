@@ -11,8 +11,11 @@ class TransactionController extends Controller
     public function send()
     {
         //выполняем работу с амо
-        $transactions = Transaction::all();
+        $transactions = Transaction::where('status', '!=', 'OK');
 
-        $profiles = Profile::all();
+        if($transactions->count() > 0) {
+
+            
+        }
     }
 }
