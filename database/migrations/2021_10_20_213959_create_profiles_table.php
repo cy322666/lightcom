@@ -23,12 +23,13 @@ class CreateProfilesTable extends Migration
             $table->string('last_name')->nullable();
             $table->string('middle_name')->nullable();
             $table->json('phones')->nullable();
-            $table->integer('yandex_profile_id')->nullable();
+            $table->string('yandex_profile_id')->nullable();
             $table->string('work_status')->nullable();
             $table->string('status')->default('Добавлено');
             $table->string('link')->nullable();
             $table->integer('transaction_id')->nullable();
             $table->string('current_status')->nullable();
+            $table->string('park_id')->nullable();
         });
     }
 

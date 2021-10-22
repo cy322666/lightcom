@@ -11,6 +11,7 @@ class Profile extends Model
 
     protected $fillable = [
         'last_transaction_date',
+        'yandex_profile_id',
         'balance',
         'first_name',
         'last_name',
@@ -20,10 +21,11 @@ class Profile extends Model
         'work_status',
         'current_status',
         'link',
+        'park_id',
     ];
 
     public function transaction()
     {
-        return $this->hasMany(Transaction::class);
+        return $this->hasOne(Transaction::class);
     }
 }

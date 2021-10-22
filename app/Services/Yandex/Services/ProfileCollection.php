@@ -58,8 +58,16 @@ class ProfileCollection
 
             print_r($response->body());exit;
 
-        } else
-            return collect(json_decode($response->body(), true)['driver_profiles']);
+        } else {
+
+            $response = json_decode($response->body(), true);
+
+            if(!empty($response['message'])) {
+
+                dd($response['message'].' park_id : '.$this->auth->park_id);
+            } else
+                return collect($response['driver_profiles']);
+        }
     }
 
     private function checkAccess($code)
