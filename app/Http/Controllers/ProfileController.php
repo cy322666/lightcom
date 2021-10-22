@@ -12,6 +12,10 @@ use Illuminate\Http\Request;
 
 class ProfileController extends Controller
 {
+    /**
+     * получает со всех аккаунтов профили водителей
+     * из Яндекс с активностью не позже 40 дней
+     */
     public function profiles()
     {
         $accounts = Account::where('service', 'yandex drive')->get();
@@ -44,14 +48,14 @@ class ProfileController extends Controller
                 $profile->transaction_id = $transaction->id;
                 $profile->save();
             }
-
-            //запрос профилей
-            //фильтр последняя транзация 40 дней назад
-            //раскидываем по бд
         }
     }
 
-    //выполняем работу с амо
+    /**
+     *  проверяет наличие контакта в амо или создает новый
+     *  записывает contact_id в транзакцию
+     *  подготовка перед отправкой лидов(транзакции) в амо
+     */
     public function send()
     {
         $profiles = Profile::where('status', 'Добавлено')->all();
@@ -60,31 +64,36 @@ class ProfileController extends Controller
 
             foreach ($profiles as $profile) {
 
-                $contact = Contacts::find($profile);
+                $contact = Contacts::search($profile, $this->amocrm);//TODO add logic
 
                 if($contact) {
 
-                    $leads = Leads::search($contact, $this->amocrm, env('PIPELINE'));//TODO pipeline?
+                    $contact = Contacts::update($contact, [//TODO add logic
+                        'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
+                        'Телефоны'  => $profile->phones,
+                        'Ссылка'    => $profile->link,
+                        //дата создания
+                    ]);
 
-                    if(count($leads) > 0) {
-
-                        foreach ($leads as $lead) {
-
-                            if($lead->status_id) 'sad';//TODO логика для этапов
-                        }
-
-                    } else {
-
-                        //не найдено активных
-                        //надо создать новую в УР
-                    }
+                    $profile->transaction->status = 'Найден контакт';
 
                 } else {
 
-                    //не найдено контакта
-                    //надо создать
+                    $contact = Contacts::create($this->amocrm, [//TODO add logic
+                        'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
+                        'Телефоны'  => $profile->phones,
+                        'Ссылка'    => $profile->link,
+                        //дата создания
+                    ]);
 
+                    $profile->transaction->status = 'Новый контакт';
                 }
+
+                $profile->transaction->contact_id = $contact->id;
+                $profile->transaction->save();
+
+                $profile->status = 'OK';
+                $profile->save();
             }
         }
     }

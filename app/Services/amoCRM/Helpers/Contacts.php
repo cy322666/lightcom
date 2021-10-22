@@ -56,7 +56,7 @@ abstract class Contacts extends Client
         return $contact;
     }
 
-    public static function create($amoapi, $client, $name = 'Неизвестно')
+    public static function create($amoapi, $fields = [], $name = 'Неизвестно')
     {
         $contact = $amoapi->service
             ->contacts()
