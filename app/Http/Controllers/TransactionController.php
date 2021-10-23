@@ -37,9 +37,18 @@ class TransactionController extends Controller
                     if($leads !== null) {
 
                         //есть активные сделка/ки у контакта
+                        //нужно узнать на каком этапе и выполнить действие
+
+                        //сколько дней прошло
+                        $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
+
+                        $created_days = Profile::getLastDays($transaction->profile->created_date);
+
+                        $status_id = Profile::getStatusLastDays($last_days, $created_days);
 
                     } else {
 
+                        //проверка 143 этапа (5 дней)
                         //нет сделок, надо создать новую
                     }
 

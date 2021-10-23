@@ -28,14 +28,6 @@ class ProfileCollection
         ];
     }
 
-    private function getPage($headers): ?array
-    {
-        $response = Http::withHeaders($headers)
-            ->get(env('AVITO_BASE_URL') . self::URL . '?page=1&cursor=1');
-
-        return json_decode($response->body(), true);
-    }
-
     public function all()
     {
         $headers = self::getHeaders();
@@ -47,7 +39,7 @@ class ProfileCollection
                         'id' => $this->auth->park_id,
                         'account' => [
                             'last_transaction_date' => [
-                                'from' => date("Y-m-d", strtotime("-40 days")).'T00:00:00+0300'
+                                'from' => date("Y-m-d", strtotime("-39 days")).'T00:00:00+0000'
                             ]
                         ]
                     ]

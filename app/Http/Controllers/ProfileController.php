@@ -14,7 +14,7 @@ class ProfileController extends Controller
 {
     /**
      * получает со всех аккаунтов профили водителей
-     * из Яндекс с активностью не позже 40 дней
+     * из Яндекс с активностью не позже 39 дней
      */
     public function profiles()
     {
@@ -30,17 +30,17 @@ class ProfileController extends Controller
 
                 $profile = Profile::updateOrCreate(['yandex_profile_id' => $profileObject['accounts'][0]['id']], [
 
-                        'last_transaction_date' => $profileObject['accounts'][0]['last_transaction_date'],
-                        'balance'       => explode( '.', $profileObject['accounts'][0]['balance'])[1],
-                        'first_name'     => $profileObject['driver_profile']['first_name'],
-                        'last_name'     => $profileObject['driver_profile']['last_name'],
-                        'middle_name'   => $profileObject['driver_profile']['middle_name'],
-                        'created_date'  => $profileObject['driver_profile']['created_date'],
-                        'phones'        => json_encode($profileObject['driver_profile']['phones']),
-                        'work_status'   => $profileObject['driver_profile']['work_status'],
-                        'current_status'=> $profileObject['current_status']['status'],
-                        'link'          => 'https://fleet.yandex.ru/drivers/'.$profileObject['accounts'][0]['id'],
-                        'park_id'       => $account->subdomain,
+                    'last_transaction_date' => $profileObject['accounts'][0]['last_transaction_date'],
+                    'balance'       => explode( '.', $profileObject['accounts'][0]['balance'])[1],
+                    'first_name'     => $profileObject['driver_profile']['first_name'],
+                    'last_name'     => $profileObject['driver_profile']['last_name'],
+                    'middle_name'   => $profileObject['driver_profile']['middle_name'],
+                    'created_date'  => $profileObject['driver_profile']['created_date'],
+                    'phones'        => json_encode($profileObject['driver_profile']['phones']),
+                    'work_status'   => $profileObject['driver_profile']['work_status'],
+                    'current_status'=> $profileObject['current_status']['status'],
+                    'link'          => 'https://fleet.yandex.ru/drivers/'.$profileObject['accounts'][0]['id'],
+                    'park_id'       => $account->subdomain,
                 ]);
 
                 $transaction = $profile->transaction()->create();
@@ -64,30 +64,29 @@ class ProfileController extends Controller
 
             foreach ($profiles as $profile) {
 
-                $contact = Contacts::search($profile, $this->amocrm);//TODO add logic
+                $contact = Contacts::search(['Телефоны'  => $profile->phones,], $this->amocrm);
 
                 if($contact) {
-
-                    $contact = Contacts::update($contact, [//TODO add logic
-                        'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
-                        'Телефоны'  => $profile->phones,
-                        'Ссылка'    => $profile->link,
-                        //дата создания
-                    ]);
 
                     $profile->transaction->status = 'Найден контакт';
 
                 } else {
 
-                    $contact = Contacts::create($this->amocrm, [//TODO add logic
-                        'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
-                        'Телефоны'  => $profile->phones,
-                        'Ссылка'    => $profile->link,
-                        //дата создания
-                    ]);
+                    $contact = Contacts::create($this->amocrm, $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name);
 
                     $profile->transaction->status = 'Новый контакт';
                 }
+
+                $contact = Contacts::update($contact, [
+                    'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
+                    'Телефоны'  => $profile->phones,
+                    'cf' => [
+                        'Ссылка на профиль'         => $profile->link,
+                        'Дата создания профиля'     => date('Y-m-d', strtotime($profile->created_date)),
+                        'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
+                        'Статус работы водителя'    => $profile->work_status,
+                    ],
+                ]);
 
                 $profile->transaction->contact_id = $contact->id;
                 $profile->transaction->save();
