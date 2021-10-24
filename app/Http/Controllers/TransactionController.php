@@ -34,15 +34,13 @@ class TransactionController extends Controller
                         'pipeline_id' => env('AMO_PIPELINE_ID'),
                     ], 'Новая сделка интеграция с Яндекс');
 
-                    $transaction->lead_id = $lead->id;
+                    $transaction->lead_id   = $lead->id;
                     $transaction->status_id = $lead->status_id;
-                    $transaction->status  = 'Нет активных | нет закрытых';
+                    $transaction->status    = 'УР для нового контакта';
                     $transaction->save();
 
                 } else {
-
                     //контакт уже был, основная логика
-
                     $leads = Leads::search($contact, $this->amocrm, env('AMO_PIPELINE_ID'));
 
                     //сколько дней прошло с транзакции
@@ -54,10 +52,8 @@ class TransactionController extends Controller
                     $status_id = Profile::getStatusLastDays($last_days, $last_created_days);
 
                     if($leads !== null) {
-
                         //есть активные сделка/ки у контакта
-                        //нужно узнать на каком этапе и выполнить действие
-                        //TODO нюанс в проверке на перемещение назад
+                        //TODO нюанс в проверке на перемещение назад | вроде бы и без проверки ок
 
                         $lead = $leads->first();
 
@@ -65,15 +61,14 @@ class TransactionController extends Controller
                         $lead->sale = $transaction->profile->balance;
                         $lead->save();
 
-                        $transaction->lead_id = $lead->id;
+                        $transaction->lead_id   = $lead->id;
                         $transaction->status_id = $lead->status_id;
-                        $transaction->status  = 'Нет активных | нет закрытых';
+                        $transaction->status    = 'Отслеживается';
+                        $transaction->comment   = 'Найдена активная и обновлена';
                         $transaction->save();
 
                     } else {
-
                         //проверка 143 этапа (5 дней)
-
                         $leads = Leads::searchByStatus($contact, env('AMO_PIPELINE_ID'), $this->amocrm, 143);
 
                         if(count($leads) > 0) {
@@ -83,8 +78,10 @@ class TransactionController extends Controller
                                 if(strtotime($lead->updated_at) < 5) {//TODO 5 days
 
                                     //редачилась < 5 дней назад
+                                    //TODO сделать логику и чекнуть корректность
                                     //log
-                                    $transaction->status = 'Нет активных | < 5 дней';
+                                    $transaction->status  = 'Нет активных есть закрытые';
+                                    $transaction->comment = 'Нет активных, в 143 измененнная < 5 дней';
                                     $transaction->save();
 
                                     continue 2;
@@ -100,7 +97,8 @@ class TransactionController extends Controller
 
                         $transaction->lead_id   = $lead->id;
                         $transaction->status_id = $lead->status_id;
-                        $transaction->status    = 'Нет активных | нет закрытых';
+                        $transaction->status    = 'Нет активных и нет закрытых';
+                        $transaction->comment   = 'В 143 нет измененных < 5 дней';
                         $transaction->save();
                     }
 

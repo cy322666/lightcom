@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 abstract class Leads
 {
-    public static function searchByStatus($contact, $client, int $pipeline_id, int $status_id)
+    public static function searchByStatus($contact, $client, int $pipeline_id, int $status_id) : ?array
     {
         $leads = [];
 

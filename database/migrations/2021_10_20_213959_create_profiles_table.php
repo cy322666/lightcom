@@ -27,9 +27,10 @@ class CreateProfilesTable extends Migration
             $table->string('work_status')->nullable();
             $table->string('status')->default('Добавлено');
             $table->string('link')->nullable();
-            $table->integer('transaction_id')->nullable();
+            $table->string('comment')->nullable();
             $table->string('current_status')->nullable();
             $table->string('park_id')->nullable();
+            $table->integer('transaction_id')->nullable();
         });
     }
 

@@ -43,10 +43,17 @@ class ProfileController extends Controller
                     'park_id'       => $account->subdomain,
                 ]);
 
-                $transaction = $profile->transaction()->create();
+                if($profile->transaction == null || $profile->transaction->contact_id !== null) {
+                    //пункт тз 1.1.7
+                    //первый импорт профиля в систему
+                    $transaction = $profile->transaction()->create();
 
-                $profile->transaction_id = $transaction->id;
-                $profile->save();
+                    $profile->comment = 'Новый импортированный';
+                    $profile->transaction_id = $transaction->id;
+                    $profile->save();
+                }
+                //else если нет, то сработает обсервер из модели
+                //если будет обновлен last_transaction то ...
             }
         }
     }
@@ -64,17 +71,19 @@ class ProfileController extends Controller
 
             foreach ($profiles as $profile) {
 
-                $contact = Contacts::search(['Телефоны'  => $profile->phones,], $this->amocrm);
+                $contact = Contacts::search(['Телефоны'  => $profile->phones], $this->amocrm);
 
                 if($contact) {
 
-                    $profile->transaction->status = 'Найден контакт';
+                    $profile->transaction->status  = 'Найден контакт';
+                    $profile->transaction->comment = 'Проверить сделки';
 
                 } else {
 
                     $contact = Contacts::create($this->amocrm, $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name);
 
-                    $profile->transaction->status = 'Новый контакт';
+                    $profile->transaction->status  = 'Новый контакт';
+                    $profile->transaction->comment = 'Создать сделку в УР';
                 }
 
                 $contact = Contacts::update($contact, [
@@ -91,7 +100,8 @@ class ProfileController extends Controller
                 $profile->transaction->contact_id = $contact->id;
                 $profile->transaction->save();
 
-                $profile->status = 'OK';
+                $profile->status  = 'OK';
+                $profile->comment = 'Отработан как импортированный';
                 $profile->save();
             }
         }
