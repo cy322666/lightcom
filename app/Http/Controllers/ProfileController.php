@@ -51,9 +51,33 @@ class ProfileController extends Controller
                     $profile->comment = 'Новый импортированный';
                     $profile->transaction_id = $transaction->id;
                     $profile->save();
+
+                } else {
+                    //изменился уже импортированный профиль
+                    if($profile->isDirty()) {
+
+                        $contact = Contacts::get($this->amocrm, $profile->transaction->contact_id);
+
+                        //предполагается, что contact_id у таких записей известен
+                        Contacts::update($contact, [
+                            'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
+                            'Телефоны'  => $profile->phones,
+                            'cf' => [
+                                'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
+                                'Статус работы водителя'    => $profile->work_status,
+                            ],
+                        ]);
+
+                        $profile->comment = 'Изменился ранее импортированный';
+                        $profile->save();
+
+                        $profile->transaction->status  = 'Добавлено';
+                        $profile->transaction->comment = 'Правки по импортированному профилю';
+                        $profile->transaction->save();
+
+                        //TODO изменился профиль, надо изменить и сделку | пока что сделал повторную отработку
+                    }
                 }
-                //else если нет, то сработает обсервер из модели
-                //если будет обновлен last_transaction то ...
             }
         }
     }
