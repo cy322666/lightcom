@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Exception;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -24,13 +25,24 @@ class Profile extends Model
         'park_id',
     ];
 
-    public static function getLastDays(string $lastDays) : int
+    /**
+     * @throws Exception
+     */
+    public static function getLastDays(string $lastDaysDate) : int
     {
-        $last_date = date('Y-m-d', strtotime($lastDays));
+        $lastDays = new \DateTime(date('Y-m-d', strtotime($lastDaysDate)));
 
-        $seconds = abs(strtotime(date('Y-m-d') - $last_date));
+        return (new \DateTime)->diff($lastDays)->days;
+    }
 
-        return round(floor($seconds / 86400));
+    /**
+     * @throws Exception
+     */
+    public static function getLastDaysTimestamp(string $timestamp) : int
+    {
+        $lastDate = (new \DateTime)->setTimestamp($timestamp);
+
+        return (new \DateTime)->diff($lastDate)->days;
     }
 
     public static function getStatusLastDays(int $lastDays, int $createdDays) : ?int
@@ -48,7 +60,7 @@ class Profile extends Model
             $status_id = env('AMO_STATUS_ID_5_DAYS');
 
         } else
-            dd('не подошло под условие : $lastDays '.$lastDays);
+            $status_id = null;
 
         return $status_id;
     }

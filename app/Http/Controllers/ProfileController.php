@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\Profile;
+use App\Services\amoCRM\Client;
 use App\Services\amoCRM\Helpers\Contacts;
 use App\Services\amoCRM\Helpers\Leads;
 use App\Services\Yandex\Auth;
@@ -46,36 +47,17 @@ class ProfileController extends Controller
                 if($profile->transaction == null || $profile->transaction->contact_id !== null) {
                     //пункт тз 1.1.7
                     //первый импорт профиля в систему
-                    $transaction = $profile->transaction()->create();
+                    $profile->transaction()->create();
 
                     $profile->comment = 'Новый импортированный';
-                    $profile->transaction_id = $transaction->id;
                     $profile->save();
 
                 } else {
                     //изменился уже импортированный профиль
                     if($profile->isDirty()) {
 
-                        $contact = Contacts::get($this->amocrm, $profile->transaction->contact_id);
-
-                        //предполагается, что contact_id у таких записей известен
-                        Contacts::update($contact, [
-                            'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
-                            'Телефоны'  => $profile->phones,
-                            'cf' => [
-                                'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
-                                'Статус работы водителя'    => $profile->work_status,
-                            ],
-                        ]);
-
-                        $profile->comment = 'Изменился ранее импортированный';
+                        $profile->status = 'Добавлено';
                         $profile->save();
-
-                        $profile->transaction->status  = 'Добавлено';
-                        $profile->transaction->comment = 'Правки по импортированному профилю';
-                        $profile->transaction->save();
-
-                        //TODO изменился профиль, надо изменить и сделку | пока что сделал повторную отработку
                     }
                 }
             }
@@ -89,44 +71,56 @@ class ProfileController extends Controller
      */
     public function send()
     {
-        $profiles = Profile::where('status', 'Добавлено')->all();
+        $this->amocrm = (new Client())->init();
+
+        $profiles = Profile::where('status', 'Добавлено')->limit(20)->get();
 
         if($profiles->count() > 0) {
 
             foreach ($profiles as $profile) {
 
-                $contact = Contacts::search(['Телефоны'  => $profile->phones], $this->amocrm);
+                try {
+                    $contact = Contacts::search(['Телефоны'  => $profile->phones], $this->amocrm);
 
-                if($contact) {
+                    if($contact) {
 
-                    $profile->transaction->status  = 'Найден контакт';
-                    $profile->transaction->comment = 'Проверить сделки';
+                        $profile->transaction->status  = 'Найден контакт';
+                        $profile->transaction->comment = 'Проверить сделки';
 
-                } else {
+                    } else {
 
-                    $contact = Contacts::create($this->amocrm, $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name);
+                        $contact = Contacts::create($this->amocrm, $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name);
 
-                    $profile->transaction->status  = 'Новый контакт';
-                    $profile->transaction->comment = 'Создать сделку в УР';
+                        $profile->transaction->status  = 'Новый контакт';
+                        $profile->transaction->comment = 'Создать сделку в УР';
+                    }
+
+                    $contact = Contacts::update($contact, [
+                        'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
+                        'Телефоны'  => $profile->phones,
+                        'cf' => [
+                            'Ссылка на профиль'         => $profile->link,
+                            'Дата создания профиля'     => date('Y-m-d', strtotime($profile->created_date)),
+                            'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
+                            'Статус работы водителя'    => $profile->work_status,
+                        ],
+                    ]);
+
+                    $profile->transaction->contact_id = $contact->id;
+                    $profile->transaction->save();
+
+                    $profile->status  = 'OK';
+                    $profile->comment = 'Отработан';
+                    $profile->save();
+
+                } catch (\Exception $exception) {
+
+                    $profile->status = $exception->getMessage();
+                    $profile->save();
+
+                    $profile->transaction->status = 'Ошибка при обработке профиля';
+                    $profile->transaction->save();
                 }
-
-                $contact = Contacts::update($contact, [
-                    'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
-                    'Телефоны'  => $profile->phones,
-                    'cf' => [
-                        'Ссылка на профиль'         => $profile->link,
-                        'Дата создания профиля'     => date('Y-m-d', strtotime($profile->created_date)),
-                        'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
-                        'Статус работы водителя'    => $profile->work_status,
-                    ],
-                ]);
-
-                $profile->transaction->contact_id = $contact->id;
-                $profile->transaction->save();
-
-                $profile->status  = 'OK';
-                $profile->comment = 'Отработан как импортированный';
-                $profile->save();
             }
         }
     }

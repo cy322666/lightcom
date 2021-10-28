@@ -32,7 +32,7 @@ abstract class Leads
     }
 
     //поиск активных в воронке
-    public static function search($contact, $client, int $pipeline_id = null) : array
+    public static function search($contact, $client, int $pipeline_id = null)
     {
         $leads = [];
 
@@ -45,16 +45,13 @@ abstract class Leads
 
                     if($pipeline_id != null && $lead->pipeline_id == $pipeline_id) {
 
-                        $lead = $client->service
+                        return $client->service
                             ->leads()
                             ->find($lead->id);
-
-                        $leads = array_merge($leads, $lead);
                     }
                 }
             }
         }
-        return $leads;
     }
 
     public static function create($contact, array $params, string $leadname)
