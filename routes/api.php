@@ -20,11 +20,24 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+/*
+ * - подтягиваются профили с Яндекс
+ * - отправляются в амо
+ * - отпправляются обновленные профили
+ * - отправляются транзакции
+ * - отправляются обновленные транзакции
+ */
 //подтягивает новые аккаунты в бд, 1
 Route::get('profiles', [ ProfileController::class, 'profiles' ]);
 
 //отрабатывает профили с амо, 20+
 Route::post('send', [ ProfileController::class, 'send' ]);
 
+//отрабатывает повторные обновления
+Route::post('updated', [ ProfileController::class, 'send_updated' ]);
+
 //отрабатывает транзакции/сделки с амо, 20+
 Route::post('transactions', [ TransactionController::class, 'transactions' ]);
+
+//отрабатывает валидные повторные обновления профилей
+Route::post('updated', [ TransactionController::class, 'transactions_updated' ]);
