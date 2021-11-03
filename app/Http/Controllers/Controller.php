@@ -13,9 +13,4 @@ class Controller extends BaseController
     protected $amocrm;
 
     use AuthorizesRequests, DispatchesJobs, ValidatesRequests;
-
-    public function __construct()
-    {
-        //$this->amocrm = (new Client())->init();
-    }
 }

@@ -27,7 +27,7 @@ class Client
             'domain'        => $account->subdomain,
             'client_id'     => $account->client_id,
             'client_secret' => $account->client_secret,
-            'redirect_uri'  => $account->redirect_uri,//TODO env защить
+            'redirect_uri'  => $account->redirect_uri,
         ]);
 
         \Ufee\Amo\Services\Account::setCacheTime(3600);

@@ -10,8 +10,29 @@ use Illuminate\Support\Facades\Log;
 
 abstract class Leads
 {
+    public static function searchByStatus($contact, $client, int $pipeline_id, int $status_id) : ?array
+    {
+        $leads = [];
+
+        if($contact->leads) {
+
+            foreach ($contact->leads as $lead) {
+
+                if ($lead->status_id == $status_id && $lead->pipeline_id == $pipeline_id) {
+
+                    $lead = $client->service
+                        ->leads()
+                        ->find($lead->id);
+
+                    $leads = array_merge($leads, $lead);
+                }
+            }
+        }
+        return $leads;
+    }
+
     //поиск активных в воронке
-    public static function search($contact, $client, int $pipeline_id = null) : array
+    public static function search($contact, $client, int $pipeline_id = null)
     {
         $leads = [];
 
@@ -24,16 +45,13 @@ abstract class Leads
 
                     if($pipeline_id != null && $lead->pipeline_id == $pipeline_id) {
 
-                        $lead = $client->service
+                        return $client->service
                             ->leads()
                             ->find($lead->id);
-
-                        $leads = array_merge($leads, $lead);
                     }
                 }
             }
         }
-        return $leads;
     }
 
     public static function create($contact, array $params, string $leadname)
