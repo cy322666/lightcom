@@ -21,7 +21,7 @@ class TransactionController extends Controller
     {
         //выполняем работу с амо
         $transactions = Transaction::where('status', '!=', 'OK')
-            ->where('status', 'Новый контакт')
+            ->orWhere('status', 'Новый контакт')
             ->orWhere('status', 'Найден контакт')
             ->get();
 
@@ -106,7 +106,7 @@ class TransactionController extends Controller
 
                             Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' была активность < 2 дней');
 
-                            $transaction->status  = 'OK';
+                            $transaction->status  = 'Ждет крона';
                             $transaction->comment = 'Активность < 2 дней';
                             $transaction->save();
 
@@ -193,7 +193,7 @@ class TransactionController extends Controller
 
                 try {
                     //то что создали по новым/добавленным профилям больше не отслеживаем
-                    if($transaction->lead_id !== 142) {
+                    if($transaction->status_id !== 142) {
 
                         //сколько дней прошло с транзакции
                         $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
@@ -314,6 +314,60 @@ class TransactionController extends Controller
                         $transaction->profile->status = 'OK';
                         $transaction->push();
                     }
+                } catch (\Exception $exception) {
+
+                    $transaction->status = $exception->getMessage().' : '.$exception->getFile().' : '.$exception->getLine();
+                    $transaction->save();
+                }
+            }
+        }
+
+        $transactions = Transaction::where('comment', 'Активность < 2 дней')->get();
+
+        if($transactions->count() > 0) {
+
+            foreach ($transactions as $transaction) {
+
+                try {
+                    $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
+                    //сколько дней прошло с создания
+                    $last_created_days = Profile::getLastDays($transaction->profile->created_date);
+
+                    if($last_created_days == 2) {
+
+                        $status_id = Profile::getStatusLastDays($last_days, $last_created_days);
+
+                        Log::info(__METHOD__.' : Чек активности < 2 : '.$transaction->id.' $last_days : '.$last_days);
+                        Log::info(__METHOD__.' : Чек активности < 2 : '.$transaction->id.' $last_created_days : '.$last_created_days);
+                        Log::info(__METHOD__.' : Чек активности < 2 : '.$transaction->id.' $status_id : '.$status_id);
+
+                        if($status_id != null) {
+
+                            if($transaction->lead_id  == null) {
+
+                                $lead = Leads::create($contact, [
+                                    'sale'      => $transaction->profile->balance,
+                                    'status_id' => $status_id,
+                                ], 'Новая сделка интеграция с Яндекс');
+
+                                $lead->attachTag($transaction->profile->park_id);
+                                $lead->save();
+
+                                $transaction->lead_id   = $lead->id;
+                                $transaction->status_id = $lead->status_id;
+                                $transaction->status    = 'Отслеживается';
+                                $transaction->comment   = 'Активная < 2 отработана';
+                                $transaction->profile->status = 'OK';
+                                $transaction->push();
+
+                            } else {
+                                Log::error(__METHOD__ . ' : Чек активности < 2 сделки быть не должно, но она есть : ' . $transaction->id . ' $status_id : ' . $status_id);
+                            }
+                        } else {
+                            Log::error(__METHOD__.' : Чек активности < 2 статус не определен, хотя 2 дня прошло : '.$transaction->id.' $status_id : '.$status_id);
+                        }
+                    }
+
                 } catch (\Exception $exception) {
 
                     $transaction->status = $exception->getMessage().' : '.$exception->getFile().' : '.$exception->getLine();
