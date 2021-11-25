@@ -28,6 +28,47 @@ class ProfileCollection
         ];
     }
 
+    public function index()
+    {
+        $headers = self::getHeaders();
+
+        $response = Http::withHeaders($headers)
+            ->post(self::URL, [
+                'query' => [
+                    'park' => [
+                        'id' => $this->auth->park_id,
+//                        'account' => [
+//                            'last_transaction_date' => [
+//                                'from' => date("Y-m-d", strtotime("-39 days")).'T00:00:00+0000'
+//                            ]
+//                        ]
+                    ]
+                ],
+                'limit' => 50,
+                'sort_order' => [
+                    [
+                    'direction' => 'desc',
+                    'field' => 'driver_profile.created_date'
+                ]
+                    ]
+            ]);
+
+        if($response->status() !== 200) {
+
+            print_r($response->body());exit;
+
+        } else {
+
+            $response = json_decode($response->body(), true);
+
+            if(!empty($response['message'])) {
+
+                dd($response['message'].' park_id : '.$this->auth->park_id);
+            } else
+                return collect($response['driver_profiles']);
+        }
+    }
+
     public function all()
     {
         $headers = self::getHeaders();

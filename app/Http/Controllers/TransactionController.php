@@ -8,6 +8,7 @@ use App\Services\amoCRM\Client;
 use App\Services\amoCRM\Helpers\Contacts;
 use App\Services\amoCRM\Helpers\Leads;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Ufee\Amo\Models\Lead;
 
 class TransactionController extends Controller
@@ -22,7 +23,6 @@ class TransactionController extends Controller
         $transactions = Transaction::where('status', '!=', 'OK')
             ->where('status', 'Новый контакт')
             ->orWhere('status', 'Найден контакт')
-            ->limit(15)
             ->get();
 
         if($transactions->count() > 0) {
@@ -34,6 +34,39 @@ class TransactionController extends Controller
                 try {
                     $contact = Contacts::get($this->amocrm, $transaction->contact_id);
 
+                    if($transaction->profile->last_transaction_date == null) {
+
+                        $last_created_days = Profile::getLastDays($transaction->profile->created_date);
+
+                        if($last_created_days == 2) {
+
+                            Log::info(__METHOD__.' : Не активная транзакция создана 2 дня назад : '.$transaction->id.' $last_created_days : '.$last_created_days);
+
+                            $lead = Leads::create($contact, [
+                                'sale'        => $transaction->profile->balance,
+                                'status_id'   => env('AMO_STATUS_ID_2_DAYS'),
+                                'pipeline_id' => env('AMO_PIPELINE_ID'),
+                            ], 'Новая сделка интеграция с Яндекс');
+
+                            $lead->attachTag($transaction->profile->park_id);
+                            $lead->save();
+
+                            $transaction->lead_id = $lead->id;
+                            $transaction->status = 'OK';
+                            $transaction->comment = 'Обновлена ожидающая';
+                            $transaction->save();
+
+                            //dd($transaction->id);
+
+                        } elseif($last_created_days < 2) {
+
+                            $transaction->comment = 'Ожидающая < 2 дней';
+                            $transaction->save();
+                        }
+
+                        continue;
+                    }
+
                     if ($transaction->status == 'Новый контакт' &&
                         $transaction->comment == 'Создать сделку в УР') {
 
@@ -43,6 +76,9 @@ class TransactionController extends Controller
                             'status_id' => 142,
                             'pipeline_id' => env('AMO_PIPELINE_ID'),
                         ], 'Новая сделка интеграция с Яндекс');
+
+                        $lead->attachTag($transaction->profile->park_id);
+                        $lead->save();
 
                         $transaction->lead_id   = $lead->id;
                         $transaction->status_id = $lead->status_id;
@@ -62,18 +98,25 @@ class TransactionController extends Controller
 
                         $status_id = Profile::getStatusLastDays($last_days, $last_created_days);
 
+                        Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' $last_days : '.$last_days);
+                        Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' $last_created_days : '.$last_created_days);
+                        Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' $status_id : '.$status_id);
+
                         if($status_id == null) {
 
-                            $transaction->status  = 'НЕ ОК';
-                            $transaction->comment = $transaction->comment .' status_id не определен';
+                            Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' была активность < 2 дней');
+
+                            $transaction->status  = 'OK';
+                            $transaction->comment = 'Активность < 2 дней';
                             $transaction->save();
 
                             continue;
-                        }
 
-                        if($lead !== null) {
+                        } elseif($lead !== null) {
                             //есть активные сделка/ки у контакта
                             //TODO нюанс в проверке на перемещение назад | вроде бы и без проверки ок
+
+                            $lead->attachTag($transaction->profile->park_id);
 
                             $lead->status_id = $status_id;
                             $lead->sale = $transaction->profile->balance;
@@ -84,6 +127,8 @@ class TransactionController extends Controller
                             $transaction->status    = 'Отслеживается';
                             $transaction->comment   = 'Найдена активная и обновлена';
                             $transaction->save();
+
+                            Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' успешно отработана');
 
                         } else {
                             //проверка 143 этапа (5 дней)
@@ -101,6 +146,8 @@ class TransactionController extends Controller
                                         $transaction->comment = 'Нет активных, в 143 измененнная < 5 дней';
                                         $transaction->save();
 
+                                        Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' нет активных, есть измененнная < 5 дней');
+
                                         continue 2;
                                     }
                                 }
@@ -108,14 +155,19 @@ class TransactionController extends Controller
                             }
                             //нет сделок, надо создать новую
 
+                            Log::info(__METHOD__.' : Новая транзакция : '.$transaction->id.' нет активных, нет подходящих закрытых, создается сделка');
+
                             $lead = Leads::create($contact, [
                                 'sale'      => $transaction->profile->balance,
                                 'status_id' => $status_id,
                             ], 'Новая сделка интеграция с Яндекс');
 
+                            $lead->attachTag($transaction->profile->park_id);
+                            $lead->save();
+
                             $transaction->lead_id   = $lead->id;
                             $transaction->status_id = $lead->status_id;
-                            $transaction->status    = 'Нет активных и нет закрытых';
+                            $transaction->status    = 'Отслеживается';
                             $transaction->comment   = 'В 143 нет измененных < 5 дней';
                             $transaction->save();
                         }
@@ -141,7 +193,7 @@ class TransactionController extends Controller
 
                 try {
                     //то что создали по новым/добавленным профилям больше не отслеживаем
-                    if($transaction->comment !== 'УР для нового контакта') {
+                    if($transaction->lead_id !== 142) {
 
                         //сколько дней прошло с транзакции
                         $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
@@ -151,11 +203,17 @@ class TransactionController extends Controller
 
                         $status_id = Profile::getStatusLastDays($last_days, $last_created_days);
 
+                        Log::info(__METHOD__.' : Обновленная транзакция : '.$transaction->id.' $last_days : '.$last_days);
+                        Log::info(__METHOD__.' : Обновленная транзакция : '.$transaction->id.' $last_created_days : '.$last_created_days);
+                        Log::info(__METHOD__.' : Обновленная транзакция : '.$transaction->id.' $status_id : '.$status_id);
+
                         if($status_id == null) {
 
-                            $transaction->status  = 'НЕ ОК';
-                            $transaction->comment = 'Обновление профиля, status_id не определен';
-                            $transaction->save();
+                            $transaction->status  = 'OK';
+                            $transaction->comment = 'Обновление профиля, активность < 5 дней';
+
+                            $transaction->profile->status = 'OK';
+                            $transaction->push();
 
                             continue;
                         }
@@ -168,6 +226,7 @@ class TransactionController extends Controller
                             if($lead->status_id == $status_id) {
 
                                 $transaction->comment = 'Профиль обновлен, но статус прежний';
+
                             } else {
 
                                 $lead->status_id = $status_id;
@@ -176,7 +235,12 @@ class TransactionController extends Controller
                                 $transaction->comment = 'Профиль обновлен, статус обновлен';
                             }
 
-                            $transaction->save();
+                            $lead->attachTag($transaction->profile->park_id);
+                            $lead->save();
+
+                            $transaction->status  = 'OK';
+                            $transaction->profile->status = 'OK';
+                            $transaction->push();
 
                         } else {
 
@@ -187,16 +251,19 @@ class TransactionController extends Controller
                             if($lead !== null) {
                                 //есть активные сделка/ки у контакта
                                 //TODO нюанс в проверке на перемещение назад | вроде бы и без проверки ок
-
                                 $lead->status_id = $status_id;
                                 $lead->sale = $transaction->profile->balance;
+
+                                $lead->attachTag($transaction->profile->park_id);
+
                                 $lead->save();
 
                                 $transaction->lead_id   = $lead->id;
                                 $transaction->status_id = $lead->status_id;
                                 $transaction->status    = 'Отслеживается';
                                 $transaction->comment   = 'Профиль обновлен, найдена активная и обновлена';
-                                $transaction->save();
+                                $transaction->profile->status = 'OK';
+                                $transaction->push();
 
                             } else {
                                 //проверка 143 этапа (5 дней)
@@ -211,8 +278,11 @@ class TransactionController extends Controller
                                         if($last_days < 5) {
 
                                             $transaction->status  = 'Нет активных есть закрытые';
-                                            $transaction->comment = 'Профиль обновлен | Нет активных, в 143 измененнная < 5 дней';
-                                            $transaction->save();
+                                            $transaction->comment = 'Нет активных, в 143 измененнная < 5 дней';
+                                            $transaction->profile->status = 'OK';
+                                            $transaction->push();
+
+                                            Log::info(__METHOD__.' : Обновленная транзакция : '.$transaction->id.' нет активных, есть измененнная < 5 дней');
 
                                             continue 2;
                                         }
@@ -220,25 +290,83 @@ class TransactionController extends Controller
                                     //тут нужно, но и так ок
                                 }
                                 //нет сделок, надо создать новую
+                                Log::info(__METHOD__.' : Обновленная транзакция : '.$transaction->id.' нет активных, нет подходящих закрытых, создается сделка');
 
                                 $lead = Leads::create($contact, [
                                     'sale'      => $transaction->profile->balance,
                                     'status_id' => $status_id,
                                 ], 'Новая сделка интеграция с Яндекс');
 
+                                $lead->attachTag($transaction->profile->park_id);
+                                $lead->save();
+
                                 $transaction->lead_id   = $lead->id;
                                 $transaction->status_id = $lead->status_id;
-                                $transaction->status    = 'Нет активных и нет закрытых';
+                                $transaction->status    = 'Отслеживается';
                                 $transaction->comment   = 'Профиль обновлен | В 143 нет измененных < 5 дней';
-                                $transaction->save();
+                                $transaction->profile->status = 'OK';
+                                $transaction->push();
                             }
                         }
+                    } else {
+                        $transaction->status = 'OK';
+                        $transaction->comment = 'Не отслеживается';
+                        $transaction->profile->status = 'OK';
+                        $transaction->push();
                     }
                 } catch (\Exception $exception) {
 
                     $transaction->status = $exception->getMessage().' : '.$exception->getFile().' : '.$exception->getLine();
                     $transaction->save();
                 }
+            }
+        }
+    }
+
+    public function check_status()
+    {
+        $transactions = Transaction::where('status_id', '!=', 142)
+            ->where('lead_id', '!=', null)
+            ->get();
+
+        $this->amocrm = (new Client())->init();
+
+        foreach ($transactions as $transaction) {
+
+            //сколько дней прошло с транзакции
+            $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
+
+            //сколько дней прошло с создания
+            $last_created_days = Profile::getLastDays($transaction->profile->created_date);
+
+            $status_id = Profile::getStatusLastDays($last_days, $last_created_days);
+
+            Log::info(__METHOD__.' : check транзакция : '.$transaction->id.' $last_days : '.$last_days);
+            Log::info(__METHOD__.' : check транзакция : '.$transaction->id.' $last_created_days : '.$last_created_days);
+            Log::info(__METHOD__.' : check транзакция : '.$transaction->id.' $status_id : '.$status_id);
+
+            if($status_id == null) {
+
+                continue;
+            } else {
+
+                $lead = Leads::get($this->amocrm, $transaction->lead_id);
+
+                if($lead) {
+
+                    if($lead->status_id != $status_id) {
+
+                        Log::info(__METHOD__.' : check транзакция : этап изменен по крону, дней с транзакции : '.$last_days);
+
+                        $lead->status_id = $status_id;
+                        $lead->save();
+
+                        $transaction->status = 'OK';
+                        $transaction->comment = 'Статус обновлен по крону';
+                        $transaction->save();
+                    }
+                } else
+                    Log::error(__METHOD__.' не получена сделка по api');
             }
         }
     }

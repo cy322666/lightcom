@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\Profile;
+use App\Models\Transaction;
 use App\Services\amoCRM\Client;
 use App\Services\amoCRM\Helpers\Contacts;
 use App\Services\amoCRM\Helpers\Leads;
 use App\Services\Yandex\Auth;
 use App\Services\Yandex\Services\ProfileCollection;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ProfileController extends Controller
 {
@@ -24,6 +27,39 @@ class ProfileController extends Controller
         foreach ($accounts as $account) {
 
             $auth = (new Auth())->setAccess($account);
+
+            $profilesCollection = (new ProfileCollection($auth))->index();
+
+            foreach ($profilesCollection as $profileObject) {
+
+                if(key_exists('last_transaction_date', (array)$profileObject['accounts'][0]) == false) {
+
+                    $profile = Profile::where('yandex_profile_id', $profileObject['accounts'][0]['id'])->first();
+
+                    if(!$profile) {
+
+                        $profile = new Profile();
+
+                        $profile->yandex_profile_id = $profileObject['accounts'][0]['id'];
+                        $profile->balance        = explode( '.', $profileObject['accounts'][0]['balance'])[1];
+                        $profile->first_name      = $profileObject['driver_profile']['first_name'] ?? null;
+                        $profile->last_name      = $profileObject['driver_profile']['last_name'] ?? null;
+                        $profile->middle_name    = $profileObject['driver_profile']['middle_name'] ?? null;
+                        $profile->created_date   = $profileObject['driver_profile']['created_date'];
+                        $profile->phones         = json_encode($profileObject['driver_profile']['phones']);
+                        $profile->work_status    = $profileObject['driver_profile']['work_status'];
+                        $profile->current_status = $profileObject['current_status']['status'];
+                        $profile->link           = 'https://fleet.yandex.ru/drivers/'.$profileObject['accounts'][0]['id'].'/details?park_id='.$account->park_id.'&lang=ru';
+                        $profile->park_id        = $account->subdomain;
+                        $profile->comment        = 'Новый без активности';
+                        $profile->save();
+
+                        $profile->transaction()->create();
+
+                        Log::info(__METHOD__.' : Новый профиль без активности с id : '.$profileObject['accounts'][0]['id']);
+                    }
+                }
+            }
 
             $profilesCollection = (new ProfileCollection($auth))->all();
 
@@ -44,9 +80,8 @@ class ProfileController extends Controller
                 $profile->phones         = json_encode($profileObject['driver_profile']['phones']);
                 $profile->work_status    = $profileObject['driver_profile']['work_status'];
                 $profile->current_status = $profileObject['current_status']['status'];
-                $profile->link           = 'https://fleet.yandex.ru/drivers/'.$profileObject['accounts'][0]['id'];
+                $profile->link           = 'https://fleet.yandex.ru/drivers/'.$profileObject['accounts'][0]['id'].'/details?park_id='.$account->park_id.'&lang=ru';
                 $profile->park_id        = $account->subdomain;
-                $profile->save();
 
                 //новый профиль, нет записи
                 if($profile->transaction == null) { // || $profile->transaction->contact_id !== null) {
@@ -54,14 +89,17 @@ class ProfileController extends Controller
                     //первый импорт профиля в систему
                     $profile->transaction()->create();
 
-                    $profile->comment = 'Новый импортированный';
-                    $profile->save();
+                    $profile->comment = 'Новый';
+
+                    Log::info(__METHOD__.' : Новый профиль с id : '.$profileObject['accounts'][0]['id']);
 
                 } elseif($profile->isDirty('last_transaction_date')) {
 
+                    Log::info(__METHOD__.' : Обновленный профиль с id : '.$profileObject['accounts'][0]['id'].' последняя транзакция : '.$profileObject['accounts'][0]['last_transaction_date']);
+
                     $profile->status = 'Обновлено';
-                    $profile->save();
                 }
+                $profile->save();
             }
         }
     }
@@ -73,7 +111,7 @@ class ProfileController extends Controller
     {
         $this->amocrm = (new Client())->init();
 
-        $profiles = Profile::where('status', 'Обновлено')->limit(20)->get();
+        $profiles = Profile::where('status', 'Обновлено')->get();
 
         if($profiles->count() > 0) {
 
@@ -89,15 +127,25 @@ class ProfileController extends Controller
                             'Имя'       => $profile->first_name.' '.$profile->last_name.' '.$profile->middle_name,
                             'Телефоны'  => $profile->phones,
                             'cf' => [
-                                'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
-                                'Статус работы водителя'    => $profile->work_status,
+                                'Ссылка на профиль'         => $profile->link,
+                                'Дата последней транзакции' => $profile->last_transaction_date ? date('Y-m-d', strtotime($profile->last_transaction_date)) : null,
+                                //'Статус работы водителя'    => $profile->work_status,
                             ],
                         ]);
 
                         $profile->status  = 'OK';
                         $profile->comment = 'Обновлено';
 
-                        $profile->transaction->status = 'Профиль обновлен';
+                        Log::info(__METHOD__.' : Профиль с id : '.$profile->yandex_profile_id.' обновлен в amocrm');
+
+                        if($profile->transaction->status !== 142) {
+
+                            $profile->transaction->status = 'Профиль обновлен';
+
+                            Log::info(__METHOD__.' : Профиль с id : '.$profile->yandex_profile_id.' ждет обновления транзакции');
+                        } else
+                            Log::info(__METHOD__.' : Профиль с id : '.$profile->yandex_profile_id.' транзакция не отслеживается');
+
                         $profile->push();
                     }
                 } catch (\Exception $exception) {
@@ -121,7 +169,7 @@ class ProfileController extends Controller
     {
         $this->amocrm = (new Client())->init();
 
-        $profiles = Profile::where('status', 'Добавлено')->limit(20)->get();
+        $profiles = Profile::where('status', 'Добавлено')->get();
 
         if($profiles->count() > 0) {
 
@@ -149,8 +197,8 @@ class ProfileController extends Controller
                         'cf' => [
                             'Ссылка на профиль'         => $profile->link,
                             'Дата создания профиля'     => date('Y-m-d', strtotime($profile->created_date)),
-                            'Дата последней транзакции' => date('Y-m-d', strtotime($profile->last_transaction_date)),
-                            'Статус работы водителя'    => $profile->work_status,
+                            'Дата последней транзакции' => $profile->last_transaction_date ? date('Y-m-d', strtotime($profile->last_transaction_date)) : null,
+                            //'Статус работы водителя'    => $profile->work_status,
                         ],
                     ]);
 
@@ -161,11 +209,31 @@ class ProfileController extends Controller
                     $profile->comment = 'Отработан';
                     $profile->save();
 
+                    Log::info(__METHOD__.' : Новый профиль с id : '.$profile->yandex_profile_id.' отправлен в amocrm');
+
                 } catch (\Exception $exception) {
 
-                    $profile->status = $exception->getMessage();
+                    $profile->status = $exception->getMessage().' '.$exception->getFile().' '.$exception->getLine();
                     $profile->save();
                 }
+            }
+        }
+    }
+
+    public function test()
+    {
+        $account = Account::where('park_id', '7c76fa6276ad4c329becde8053311597')->first();
+
+        $auth = (new Auth())->setAccess($account);
+
+        $profilesCollection = (new ProfileCollection($auth))->index();
+
+        foreach ($profilesCollection as $profileObject) {
+
+           // print_r($profileObject);echo "\n";exit;
+            if($profileObject['driver_profile']['id'] == '9768180c9255a751968e72387faca68b') {
+
+                print_r($profileObject);exit;
             }
         }
     }
