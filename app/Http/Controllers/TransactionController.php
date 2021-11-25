@@ -183,11 +183,11 @@ class TransactionController extends Controller
 
     public function transactions_updated()
     {
+        $this->amocrm = (new Client())->init();
+
         $transactions = Transaction::where('status', 'Профиль обновлен')->get();
 
         if($transactions->count() > 0) {
-
-            $this->amocrm = (new Client())->init();
 
             foreach ($transactions as $transaction) {
 
@@ -329,11 +329,13 @@ class TransactionController extends Controller
             foreach ($transactions as $transaction) {
 
                 try {
-                    $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
-                    //сколько дней прошло с создания
-                    $last_created_days = Profile::getLastDays($transaction->profile->created_date);
 
-                    if($last_created_days == 2) {
+                    $last_days = Profile::getLastDays($transaction->profile->last_transaction_date);
+
+                    if($last_days == 2) {
+
+                        //сколько дней прошло с создания
+                        $last_created_days = Profile::getLastDays($transaction->profile->created_date);
 
                         $status_id = Profile::getStatusLastDays($last_days, $last_created_days);
 
@@ -344,6 +346,8 @@ class TransactionController extends Controller
                         if($status_id != null) {
 
                             if($transaction->lead_id  == null) {
+
+                                $contact = Contacts::get($this->amocrm, $transaction->contact_id);
 
                                 $lead = Leads::create($contact, [
                                     'sale'      => $transaction->profile->balance,
@@ -359,7 +363,7 @@ class TransactionController extends Controller
                                 $transaction->comment   = 'Активная < 2 отработана';
                                 $transaction->profile->status = 'OK';
                                 $transaction->push();
-
+dd('exit');
                             } else {
                                 Log::error(__METHOD__ . ' : Чек активности < 2 сделки быть не должно, но она есть : ' . $transaction->id . ' $status_id : ' . $status_id);
                             }

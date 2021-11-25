@@ -51,7 +51,7 @@ class Profile extends Model
 
             $status_id = env('AMO_STATUS_ID_15_DAYS');
 
-        } elseif($lastDays >= 2 && $createdDays == 2) {
+        } elseif($createdDays >= 2 && $lastDays == 2) {
 
             $status_id = env('AMO_STATUS_ID_2_DAYS');
 
