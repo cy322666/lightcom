@@ -28,7 +28,7 @@ class ProfileCollection
         ];
     }
 
-    public function index()
+    public function all()
     {
         $headers = self::getHeaders();
 
@@ -37,41 +37,18 @@ class ProfileCollection
                 'query' => [
                     'park' => [
                         'id' => $this->auth->park_id,
-//                        'account' => [
-//                            'last_transaction_date' => [
-//                                'from' => date("Y-m-d", strtotime("-39 days")).'T00:00:00+0000'
-//                            ]
-//                        ]
                     ]
                 ],
                 'limit' => 50,
                 'sort_order' => [
                     [
-                    'direction' => 'desc',
-                    'field' => 'driver_profile.created_date'
-                ]
+                        'direction' => 'desc',
+                        'field' => 'driver_profile.created_date'
                     ]
+                ]
             ]);
 
-        if($response->status() !== 200) {
-
-            print_r($response->body());exit;
-
-        } else {
-
-            $response = json_decode($response->body(), true);
-
-            if(!empty($response['message'])) {
-
-                dd($response['message'].' park_id : '.$this->auth->park_id);
-            } else
-                return collect($response['driver_profiles']);
-        }
-    }
-
-    public function all()
-    {
-        $headers = self::getHeaders();
+        $response1 = json_decode($response->body(), true)['driver_profiles'];
 
         $response = Http::withHeaders($headers)
             ->post(self::URL, [
@@ -87,20 +64,9 @@ class ProfileCollection
                 ]
             ]);
 
-        if($response->status() !== 200) {
+        $response2 = json_decode($response->body(), true)['driver_profiles'];
 
-            print_r($response->body());exit;
-
-        } else {
-
-            $response = json_decode($response->body(), true);
-
-            if(!empty($response['message'])) {
-
-                dd($response['message'].' park_id : '.$this->auth->park_id);
-            } else
-                return collect($response['driver_profiles']);
-        }
+        return collect($response1 + $response2);
     }
 
     private function checkAccess($code)

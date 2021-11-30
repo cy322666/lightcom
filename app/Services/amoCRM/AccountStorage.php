@@ -1,7 +1,7 @@
 <?php
 
 
-namespace App\Services;
+namespace App\Services\amoCRM;
 
 use App\Models\Account;
 use Ufee\Amo\Base\Storage\Oauth\AbstractStorage;

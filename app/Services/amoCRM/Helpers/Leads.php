@@ -4,7 +4,6 @@
 namespace App\Services\amoCRM\Helpers;
 
 
-use App\Models\Api\Setting;
 use App\Services\amoCRM\Client;
 use Illuminate\Support\Facades\Log;
 
@@ -93,7 +92,7 @@ abstract class Leads
             if(!empty($params['status_id']))
                 $lead->status_id = $params['status_id'];
 
-            $lead->updated_at = time() + 2;
+            $lead->updated_at = time();
             $lead->save();
 
             return $lead;

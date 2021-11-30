@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Ufee\Amo\Base\Storage\Oauth\AbstractStorage;
 use Ufee\Amo\Base\Storage\Oauth\FileStorage;
 use Ufee\Amo\Oauthapi;
-use App\Services\AccountStorage;
+use App\Services\amoCRM\AccountStorage;
 
 class Client
 {

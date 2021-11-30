@@ -11,6 +11,6 @@ class Transaction extends Model
 
     public function profile()
     {
-        return $this->belongsTo(Profile::class);
+        return $this->hasOne(Profile::class);
     }
 }

@@ -22,6 +22,7 @@ class Profile extends Model
         'work_status',
         'current_status',
         'link',
+        'contact_id',
         'park_id',
     ];
 
@@ -55,7 +56,7 @@ class Profile extends Model
 
             $status_id = env('AMO_STATUS_ID_2_DAYS');
 
-        } elseif($lastDays <= 15 && $lastDays > 5) {
+        } elseif($lastDays < 14 && $lastDays > 5) {
 
             $status_id = env('AMO_STATUS_ID_5_DAYS');
 

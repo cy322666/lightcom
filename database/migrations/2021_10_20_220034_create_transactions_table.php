@@ -18,7 +18,6 @@ class CreateTransactionsTable extends Migration
             $table->timestamps();
             $table->integer('profile_id')->nullable();
             $table->integer('lead_id')->nullable();
-            $table->integer('contact_id')->nullable();
             $table->integer('status_id')->nullable();
             $table->string('status')->default('Добавлено');
             $table->string('comment')->nullable();

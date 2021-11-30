@@ -30,6 +30,7 @@ class CreateProfilesTable extends Migration
             $table->string('comment')->nullable();
             $table->string('current_status')->nullable();
             $table->string('park_id')->nullable();
+            $table->integer('contact_id')->nullable();
             $table->integer('transaction_id')->nullable();
         });
     }
