@@ -131,14 +131,12 @@ class ProfileController extends Controller
         }
     }
 
+    private function checkLead()
+    {
+
+    }
+
     public function test()
     {
-        $profiles = Transaction::where('comment', 'Создать сделку в УР')->get();
-
-        foreach ($profiles as $profile) {
-
-            $profile->profile->status = 'Не отслеживается';
-            $profile->profile->save();
-        }
     }
 }

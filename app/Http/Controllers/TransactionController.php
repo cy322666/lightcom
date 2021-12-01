@@ -60,6 +60,8 @@ class TransactionController extends Controller
                             $transaction->comment = 'Ждала второго дня';
                             $transaction->save();
 
+                            $this->check($contact);
+
                             //не актуальные профили
                         } elseif($last_created_days > 2) {
 
@@ -106,6 +108,8 @@ class TransactionController extends Controller
                         $transaction->comment   = 'УР для нового контакта';
                         $transaction->save();
 
+                        $this->check($contact);
+
                         /* ОТРАБОТКА НОВЫХ ПРОФИЛЕЙ НО С СУЩЕСТВУЮЩИМ КОНТАКТОМ В АМО */
                     } elseif($transaction->status == 'Найден контакт') {
 
@@ -144,6 +148,8 @@ class TransactionController extends Controller
                                 $transaction->comment   = 'Найдена активная и обновлена';
                                 $transaction->save();
 
+                                $this->check($contact);
+
                                 //нет активной, проверяем условия по закрытым
                             } else {
                                 //проверка 143 этапа + изменения за 5 дней
@@ -179,6 +185,8 @@ class TransactionController extends Controller
                                     $transaction->status    = 'Отслеживается';
                                     $transaction->comment   = 'Нет активных, в 143 нет измененных < 5 дней';
                                     $transaction->save();
+
+                                    $this->check($contact);
                                 }
                             }
                         }
@@ -217,6 +225,8 @@ class TransactionController extends Controller
 
                             $transaction->comment = 'Смена этапа отслеживаемой сделки';
                             $transaction->push();
+
+                            $this->check($contact);
                         }
                     }
 
@@ -226,6 +236,21 @@ class TransactionController extends Controller
                     $transaction->save();
                 }
             }
+        }
+    }
+
+    private function check($contact)
+    {
+        if($contact == null) return;
+
+        $lead = Leads::search($contact, $this->amocrm, 3697717);
+
+        if($lead) {
+
+            $lead->status_id = 142;
+            $lead->save();
+
+            Log::warning('Смена сделки '.$lead->id);
         }
     }
 }
