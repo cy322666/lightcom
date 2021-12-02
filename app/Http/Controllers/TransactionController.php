@@ -44,24 +44,26 @@ class TransactionController extends Controller
 
                             Log::info(__METHOD__.' : Не активная транзакция создана 2 дня назад : '.$transaction->id.' $last_created_days : '.$last_created_days);
 
-                            $contact = Contacts::get($this->amocrm, $transaction->profile->contact_id);
+                            if($transaction->lead_id == null) {
 
-                            $lead = Leads::create($contact, [
-                                'sale'        => $transaction->profile->balance,
-                                'status_id'   => env('AMO_STATUS_ID_2_DAYS'),
-                                'pipeline_id' => env('AMO_PIPELINE_ID'),
-                            ], 'Новая сделка интеграция с Яндекс');
+                                $contact = Contacts::get($this->amocrm, $transaction->profile->contact_id);
 
-                            $lead->attachTag($transaction->profile->park_id);
-                            $lead->save();
+                                $lead = Leads::create($contact, [
+                                    'sale'        => $transaction->profile->balance,
+                                    'status_id'   => env('AMO_STATUS_ID_2_DAYS'),
+                                    'pipeline_id' => env('AMO_PIPELINE_ID'),
+                                ], 'Новая сделка интеграция с Яндекс');
 
-                            $transaction->lead_id = $lead->id;
-                            $transaction->status  = 'Отслеживается';
-                            $transaction->comment = 'Ждала второго дня';
-                            $transaction->save();
+                                $lead->attachTag($transaction->profile->park_id);
+                                $lead->save();
 
-                            $this->check($contact);
+                                $transaction->lead_id = $lead->id;
+                                $transaction->status  = 'Отслеживается';
+                                $transaction->comment = 'Ждала второго дня';
+                                $transaction->save();
 
+                                $this->check($contact);
+                            }
                             //не актуальные профили
                         } elseif($last_created_days > 2) {
 
