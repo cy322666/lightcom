@@ -78,24 +78,27 @@ abstract class Leads
     {
         try {
 
-            if($fields) {
+            if($lead !== null) {
 
-                foreach ($fields as $key => $field) {
+                if($fields) {
 
-                    $lead->cf($key)->setValue($field);
+                    foreach ($fields as $key => $field) {
+
+                        $lead->cf($key)->setValue($field);
+                    }
                 }
+
+                if(!empty($params['responsible_user_id']))
+                    $lead->responsible_user_id = $params['responsible_user_id'];
+
+                if(!empty($params['status_id']))
+                    $lead->status_id = $params['status_id'];
+
+                $lead->updated_at = time();
+                $lead->save();
+
+                return $lead;
             }
-
-            if(!empty($params['responsible_user_id']))
-                $lead->responsible_user_id = $params['responsible_user_id'];
-
-            if(!empty($params['status_id']))
-                $lead->status_id = $params['status_id'];
-
-            $lead->updated_at = time();
-            $lead->save();
-
-            return $lead;
 
         } catch (\Exception $exception) {
 
